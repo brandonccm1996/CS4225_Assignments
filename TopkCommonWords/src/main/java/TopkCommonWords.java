@@ -21,7 +21,7 @@ import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 
 public class TopkCommonWords {
 
-    public static class TopkCommonWordsMapper1 extends Mapper<Object, Text, Text, IntWritable> {
+    public static class TokenizerMapper1 extends Mapper<Object, Text, Text, IntWritable> {
         private Map<String, Integer> hMap = new HashMap<>();
         private ArrayList<String> stopwordList = new ArrayList<>();
 
@@ -65,7 +65,7 @@ public class TopkCommonWords {
         }
     }
 
-    public static class TopkCommonWordsMapper2 extends Mapper<Object, Text, Text, IntWritable> {
+    public static class TokenizerMapper2 extends Mapper<Object, Text, Text, IntWritable> {
         private Map<String, Integer> hMap = new HashMap<>();
         private ArrayList<String> stopwordList = new ArrayList<>();
 
@@ -109,7 +109,7 @@ public class TopkCommonWords {
         }
     }
 
-    public static class TopkCommonWordsReducer1 extends Reducer<Text, IntWritable, IntWritable, Text> {
+    public static class IntSumReducer extends Reducer<Text, IntWritable, IntWritable, Text> {
         private Map<String, Integer> hMap = new HashMap<>();
 
         public void reduce(Text key, Iterable<IntWritable> values, Context context) {
@@ -151,21 +151,21 @@ public class TopkCommonWords {
 
     public static void main(String[] args) throws Exception {
         Configuration conf = new Configuration();
-        Job job1 = Job.getInstance(conf, "top k common words");
+        Job job = Job.getInstance(conf, "top k common words");
 
-        job1.setJarByClass(TopkCommonWords.class);
-        job1.setReducerClass(TopkCommonWordsReducer1.class);
-        job1.setNumReduceTasks(1);
+        job.setJarByClass(TopkCommonWords.class);
+        job.setReducerClass(IntSumReducer.class);
+        job.setNumReduceTasks(1);
 
-        job1.setMapOutputKeyClass(Text.class);
-        job1.setMapOutputValueClass(IntWritable.class);
-        job1.setOutputKeyClass(IntWritable.class);
-        job1.setOutputValueClass(Text.class);
-        job1.addCacheFile(new Path(args[0] + "/stopwords.txt").toUri());
-        MultipleInputs.addInputPath(job1, new Path(args[0] + "/task1-input1.txt"), TextInputFormat.class, TopkCommonWordsMapper1.class);
-        MultipleInputs.addInputPath(job1, new Path(args[0] + "/task1-input2.txt"), TextInputFormat.class, TopkCommonWordsMapper2.class);
-        FileOutputFormat.setOutputPath(job1, new Path(args[1]));
+        job.setMapOutputKeyClass(Text.class);
+        job.setMapOutputValueClass(IntWritable.class);
+        job.setOutputKeyClass(IntWritable.class);
+        job.setOutputValueClass(Text.class);
+        job.addCacheFile(new Path(args[0] + "/stopwords.txt").toUri());
+        MultipleInputs.addInputPath(job, new Path(args[0] + "/task1-input1.txt"), TextInputFormat.class, TokenizerMapper1.class);
+        MultipleInputs.addInputPath(job, new Path(args[0] + "/task1-input2.txt"), TextInputFormat.class, TokenizerMapper2.class);
+        FileOutputFormat.setOutputPath(job, new Path(args[1]));
 
-        System.exit(job1.waitForCompletion(true) ? 0 : 1);
+        System.exit(job.waitForCompletion(true) ? 0 : 1);
     }
 }
