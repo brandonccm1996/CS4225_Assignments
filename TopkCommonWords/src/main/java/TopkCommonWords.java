@@ -30,7 +30,8 @@ public class TopkCommonWords {
             Configuration conf = context.getConfiguration();
             URI[] cacheFiles = Job.getInstance(conf).getCacheFiles();
             Path stopwordFilePath = new Path(cacheFiles[0].getPath());
-            readStopwordFile(stopwordFilePath);
+            String stopwordFileName = stopwordFilePath.getName().toString();
+            readStopwordFile(stopwordFileName);
         }
 
         public void map(Object key, Text value, Context context) throws IOException {
@@ -57,15 +58,15 @@ public class TopkCommonWords {
             }
         }
 
-        private void readStopwordFile(Path stopwordFile) {
+        private void readStopwordFile(String stopwordFileName) {
             try {
-                BufferedReader fis = new BufferedReader(new FileReader(stopwordFile.toString()));
+                BufferedReader fis = new BufferedReader(new FileReader(stopwordFileName));
                 String stopword = null;
                 while ((stopword = fis.readLine()) != null) {
                     stopwordList.add(stopword);
                 }
             } catch (IOException e) {
-                System.err.println("Exception while reading stop word file '" + stopwordFile + "' : " + e.toString());
+                System.err.println("Exception while reading stop word file");
             }
         }
     }
@@ -78,8 +79,9 @@ public class TopkCommonWords {
         public void setup(Context context) throws IOException {
             Configuration conf = context.getConfiguration();
             URI[] cacheFiles = Job.getInstance(conf).getCacheFiles();
-            Path stopwordFilePath = new Path(cacheFiles[0]);
-            readStopwordFile(stopwordFilePath);
+            Path stopwordFilePath = new Path(cacheFiles[0].getPath());
+            String stopwordFileName = stopwordFilePath.getName().toString();
+            readStopwordFile(stopwordFileName);
         }
 
         public void map(Object key, Text value, Context context) throws IOException {
@@ -106,15 +108,15 @@ public class TopkCommonWords {
             }
         }
 
-        private void readStopwordFile(Path stopwordFile) {
+        private void readStopwordFile(String stopwordFileName) {
             try {
-                BufferedReader fis = new BufferedReader(new FileReader(stopwordFile.toString()));
+                BufferedReader fis = new BufferedReader(new FileReader(stopwordFileName));
                 String stopword = null;
                 while ((stopword = fis.readLine()) != null) {
                     stopwordList.add(stopword);
                 }
             } catch (IOException e) {
-                System.err.println("Exception while reading stop word file '" + stopwordFile + "' : " + e.toString());
+                System.err.println("Exception while reading stop word file");
             }
         }
     }
