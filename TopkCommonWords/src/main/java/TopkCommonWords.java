@@ -25,11 +25,15 @@ public class TopkCommonWords {
         private Map<String, Integer> hMap = new HashMap<>();
         private ArrayList<String> stopwordList = new ArrayList<>();
 
-        public void map(Object key, Text value, Context context) throws IOException {
-            URI[] cacheFiles = context.getCacheFiles();
-            Path stopwordFilePath = new Path(cacheFiles[0]);
+        @Override
+        public void setup(Context context) throws IOException {
+            Configuration conf = context.getConfiguration();
+            URI[] cacheFiles = Job.getInstance(conf).getCacheFiles();
+            Path stopwordFilePath = new Path(cacheFiles[0].getPath());
             readStopwordFile(stopwordFilePath);
+        }
 
+        public void map(Object key, Text value, Context context) throws IOException {
             StringTokenizer itr = new StringTokenizer(value.toString());
             while (itr.hasMoreTokens()) {
                 String nextToken = itr.nextToken();
@@ -45,6 +49,7 @@ public class TopkCommonWords {
             }
         }
 
+        @Override
         public void cleanup(Context context) throws IOException, InterruptedException {
             for (Map.Entry<String, Integer> entry : hMap.entrySet()) {
                 String hMapKey = entry.getKey();
@@ -69,11 +74,15 @@ public class TopkCommonWords {
         private Map<String, Integer> hMap = new HashMap<>();
         private ArrayList<String> stopwordList = new ArrayList<>();
 
-        public void map(Object key, Text value, Context context) throws IOException {
-            URI[] cacheFiles = context.getCacheFiles();
+        @Override
+        public void setup(Context context) throws IOException {
+            Configuration conf = context.getConfiguration();
+            URI[] cacheFiles = Job.getInstance(conf).getCacheFiles();
             Path stopwordFilePath = new Path(cacheFiles[0]);
             readStopwordFile(stopwordFilePath);
+        }
 
+        public void map(Object key, Text value, Context context) throws IOException {
             StringTokenizer itr = new StringTokenizer(value.toString());
             while (itr.hasMoreTokens()) {
                 String nextToken = itr.nextToken();
@@ -89,6 +98,7 @@ public class TopkCommonWords {
             }
         }
 
+        @Override
         public void cleanup(Context context) throws IOException, InterruptedException {
             for (Map.Entry<String, Integer> entry : hMap.entrySet()) {
                 String hMapKey = entry.getKey();
@@ -161,10 +171,12 @@ public class TopkCommonWords {
         job.setMapOutputValueClass(IntWritable.class);
         job.setOutputKeyClass(IntWritable.class);
         job.setOutputValueClass(Text.class);
-        job.addCacheFile(new Path(args[0] + "/stopwords.txt").toUri());
-        MultipleInputs.addInputPath(job, new Path(args[0] + "/task1-input1.txt"), TextInputFormat.class, TokenizerMapper1.class);
-        MultipleInputs.addInputPath(job, new Path(args[0] + "/task1-input2.txt"), TextInputFormat.class, TokenizerMapper2.class);
-        FileOutputFormat.setOutputPath(job, new Path(args[1]));
+
+        System.out.println("STOPWORD FILE: " + new Path(args[2]).toUri());
+        job.addCacheFile(new Path(args[2]).toUri());
+        MultipleInputs.addInputPath(job, new Path(args[0]), TextInputFormat.class, TokenizerMapper1.class);
+        MultipleInputs.addInputPath(job, new Path(args[1]), TextInputFormat.class, TokenizerMapper2.class);
+        FileOutputFormat.setOutputPath(job, new Path(args[3]));
 
         System.exit(job.waitForCompletion(true) ? 0 : 1);
     }
