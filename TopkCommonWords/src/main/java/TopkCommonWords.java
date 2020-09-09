@@ -25,7 +25,6 @@ public class TopkCommonWords {
         private Map<String, Integer> hMap = new HashMap<>();
         private ArrayList<String> stopwordList = new ArrayList<>();
 
-        @Override
         public void setup(Context context) throws IOException {
             Configuration conf = context.getConfiguration();
             URI[] cacheFiles = Job.getInstance(conf).getCacheFiles();
@@ -50,7 +49,6 @@ public class TopkCommonWords {
             }
         }
 
-        @Override
         public void cleanup(Context context) throws IOException, InterruptedException {
             for (Map.Entry<String, Integer> entry : hMap.entrySet()) {
                 String hMapKey = entry.getKey();
@@ -75,7 +73,6 @@ public class TopkCommonWords {
         private Map<String, Integer> hMap = new HashMap<>();
         private ArrayList<String> stopwordList = new ArrayList<>();
 
-        @Override
         public void setup(Context context) throws IOException {
             Configuration conf = context.getConfiguration();
             URI[] cacheFiles = Job.getInstance(conf).getCacheFiles();
@@ -100,7 +97,6 @@ public class TopkCommonWords {
             }
         }
 
-        @Override
         public void cleanup(Context context) throws IOException, InterruptedException {
             for (Map.Entry<String, Integer> entry : hMap.entrySet()) {
                 String hMapKey = entry.getKey();
@@ -174,7 +170,6 @@ public class TopkCommonWords {
         job.setOutputKeyClass(IntWritable.class);
         job.setOutputValueClass(Text.class);
 
-        System.out.println("STOPWORD FILE: " + new Path(args[2]).toUri());
         job.addCacheFile(new Path(args[2]).toUri());
         MultipleInputs.addInputPath(job, new Path(args[0]), TextInputFormat.class, TokenizerMapper1.class);
         MultipleInputs.addInputPath(job, new Path(args[1]), TextInputFormat.class, TokenizerMapper2.class);
