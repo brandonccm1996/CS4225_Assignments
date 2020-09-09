@@ -15,38 +15,46 @@ import org.apache.hadoop.io.*;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
-import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.input.MultipleInputs;
+import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 
 public class TopkCommonWords {
 
     public static class TopkCommonWordsMapper1 extends Mapper<Object, Text, Text, IntWritable> {
-        private final static IntWritable one = new IntWritable(1);
-        private Text word = new Text();
-        private BufferedReader fis;
-
-        private URI[] stopwordFiles;
-        private Path stopwordFilePath;
+        private Map<String, Integer> hMap = new HashMap<>();
         private ArrayList<String> stopwordList = new ArrayList<>();
 
-        public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
-            stopwordFiles = context.getCacheFiles();
-            stopwordFilePath = new Path(stopwordFiles[0]);
+        public void map(Object key, Text value, Context context) throws IOException {
+            URI[] cacheFiles = context.getCacheFiles();
+            Path stopwordFilePath = new Path(cacheFiles[0]);
             readStopwordFile(stopwordFilePath);
 
             StringTokenizer itr = new StringTokenizer(value.toString());
             while (itr.hasMoreTokens()) {
                 String nextToken = itr.nextToken();
                 if (!stopwordList.contains(nextToken)) {
-                    word.set(nextToken);
-                    context.write(word, one);
+                    if (hMap.containsKey(nextToken)) {
+                        int prevCount = hMap.get(nextToken);
+                        hMap.put(nextToken, prevCount+1);
+                    }
+                    else {
+                        hMap.put(nextToken, 1);
+                    }
                 }
+            }
+        }
+
+        public void cleanup(Context context) throws IOException, InterruptedException {
+            for (Map.Entry<String, Integer> entry : hMap.entrySet()) {
+                String hMapKey = entry.getKey();
+                context.write(new Text(hMapKey), new IntWritable(entry.getValue()));
             }
         }
 
         private void readStopwordFile(Path stopwordFile) {
             try {
-                fis = new BufferedReader(new FileReader(stopwordFile.toString()));
+                BufferedReader fis = new BufferedReader(new FileReader(stopwordFile.toString()));
                 String stopword = null;
                 while ((stopword = fis.readLine()) != null) {
                     stopwordList.add(stopword);
@@ -57,40 +65,74 @@ public class TopkCommonWords {
         }
     }
 
-    public static class TopkCommonWordsReducer1 extends Reducer<Text, IntWritable, Text, IntWritable> {
-        private IntWritable result = new IntWritable();
+    public static class TopkCommonWordsMapper2 extends Mapper<Object, Text, Text, IntWritable> {
+        private Map<String, Integer> hMap = new HashMap<>();
+        private ArrayList<String> stopwordList = new ArrayList<>();
 
-        public void reduce(Text key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
-            int sum = 0;
-            for (IntWritable val : values) {
-                sum += val.get();
+        public void map(Object key, Text value, Context context) throws IOException {
+            URI[] cacheFiles = context.getCacheFiles();
+            Path stopwordFilePath = new Path(cacheFiles[0]);
+            readStopwordFile(stopwordFilePath);
+
+            StringTokenizer itr = new StringTokenizer(value.toString());
+            while (itr.hasMoreTokens()) {
+                String nextToken = itr.nextToken();
+                if (!stopwordList.contains(nextToken)) {
+                    if (hMap.containsKey(nextToken)) {
+                        int prevCount = hMap.get(nextToken);
+                        hMap.put(nextToken, prevCount+1);
+                    }
+                    else {
+                        hMap.put(nextToken, 1);
+                    }
+                }
             }
-            result.set(sum);
-            context.write(key, result);
+        }
+
+        public void cleanup(Context context) throws IOException, InterruptedException {
+            for (Map.Entry<String, Integer> entry : hMap.entrySet()) {
+                String hMapKey = entry.getKey();
+                context.write(new Text(hMapKey), new IntWritable(entry.getValue()));
+            }
+        }
+
+        private void readStopwordFile(Path stopwordFile) {
+            try {
+                BufferedReader fis = new BufferedReader(new FileReader(stopwordFile.toString()));
+                String stopword = null;
+                while ((stopword = fis.readLine()) != null) {
+                    stopwordList.add(stopword);
+                }
+            } catch (IOException e) {
+                System.err.println("Exception while reading stop word file '" + stopwordFile + "' : " + e.toString());
+            }
         }
     }
 
-    public static class TopkCommonWordsMapper2 extends Mapper<Object, Text, IntWritable, Text> {
+    public static class TopkCommonWordsReducer1 extends Reducer<Text, IntWritable, IntWritable, Text> {
+        private Map<String, Integer> hMap = new HashMap<>();
 
-        public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
-            System.out.println("MAP IN MAPPER2");
-            System.out.println(value);
-            context.write(new IntWritable(1), value);
+        public void reduce(Text key, Iterable<IntWritable> values, Context context) {
+            int file1count = 0;
+            int file2count = 0;
+
+            for (IntWritable value : values) {
+                if (file1count == 0) {
+                    file1count = value.get();
+                } else {
+                    file2count = value.get();
+                }
+            }
+            int countToOutput = Math.min(file1count, file2count);
+            hMap.put(key.toString(), countToOutput);
         }
-    }
 
-    public static class TopkCommonWordsReducer2 extends Reducer<IntWritable, Text, IntWritable, Text> {
-        private ArrayList<ImmutablePair<Integer, String>> allCommonWords = new ArrayList<>();
+        public void cleanup(Context context) throws IOException, InterruptedException {
+            ArrayList<ImmutablePair<Integer, String>> allCommonWords = new ArrayList<>();
 
-        public void reduce(IntWritable key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
-            System.out.println("REDUCE IN REDUCER2");
-
-            for (Text value : values) {
-                System.out.println("BEFORE AGGREGATING: " + value.toString());
-                String v[] = value.toString().split("\t");
-                Integer count = Integer.parseInt(v[1]);
-                ImmutablePair <Integer, String> countWordPair = new ImmutablePair<>(count, v[0]);
-                allCommonWords.add(countWordPair);
+            for (Map.Entry<String, Integer> entry : hMap.entrySet()) {
+                ImmutablePair <Integer, String> wordCountPair = new ImmutablePair<>(entry.getValue(), entry.getKey());
+                allCommonWords.add(wordCountPair);
             }
 
             Collections.sort(allCommonWords, new Comparator<ImmutablePair<Integer, String>>() {
@@ -112,35 +154,18 @@ public class TopkCommonWords {
         Job job1 = Job.getInstance(conf, "top k common words");
 
         job1.setJarByClass(TopkCommonWords.class);
-        job1.setMapperClass(TopkCommonWordsMapper1.class);
-        job1.setCombinerClass(TopkCommonWordsReducer1.class);
         job1.setReducerClass(TopkCommonWordsReducer1.class);
-//        job1.setNumReduceTasks(1);
+        job1.setNumReduceTasks(1);
 
-        job1.setOutputKeyClass(Text.class);
-        job1.setOutputValueClass(IntWritable.class);
+        job1.setMapOutputKeyClass(Text.class);
+        job1.setMapOutputValueClass(IntWritable.class);
+        job1.setOutputKeyClass(IntWritable.class);
+        job1.setOutputValueClass(Text.class);
         job1.addCacheFile(new Path(args[0] + "/stopwords.txt").toUri());
-        FileInputFormat.addInputPath(job1, new Path(args[0] + "/task1-input1.txt"));
-        FileInputFormat.addInputPath(job1, new Path(args[0] + "/task1-input2.txt"));
-//        FileOutputFormat.setOutputPath(job1, new Path(args[1]));
-        FileOutputFormat.setOutputPath(job1, new Path("temp_out1"));
+        MultipleInputs.addInputPath(job1, new Path(args[0] + "/task1-input1.txt"), TextInputFormat.class, TopkCommonWordsMapper1.class);
+        MultipleInputs.addInputPath(job1, new Path(args[0] + "/task1-input2.txt"), TextInputFormat.class, TopkCommonWordsMapper2.class);
+        FileOutputFormat.setOutputPath(job1, new Path(args[1]));
 
-//        System.exit(job1.waitForCompletion(true) ? 0 : 1);
-        job1.waitForCompletion(true);
-
-        Configuration conf2 = new Configuration();
-        Job job2 = Job.getInstance(conf2, "top k common words 2");
-        job2.setJarByClass(TopkCommonWords.class);
-        job2.setMapperClass(TopkCommonWordsMapper2.class);
-//        job2.setCombinerClass(TopkCommonWordsReducer2.class);
-        job2.setReducerClass(TopkCommonWordsReducer2.class);
-        job2.setNumReduceTasks(1);
-
-        job2.setOutputKeyClass(IntWritable.class);
-        job2.setOutputValueClass(Text.class);
-        FileInputFormat.addInputPath(job2, new Path("temp_out1"));
-        FileOutputFormat.setOutputPath(job2, new Path(args[1]));
-
-        System.exit(job2.waitForCompletion(true) ? 0 : 1);
+        System.exit(job1.waitForCompletion(true) ? 0 : 1);
     }
 }
