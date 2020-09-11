@@ -21,7 +21,7 @@ import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 
 public class TopkCommonWords {
 
-    public static class TokenizerMapper1 extends Mapper<Object, Text, Text, IntWritable> {
+    public static class TokenizerMapper extends Mapper<Object, Text, Text, IntWritable> {
         private Map<String, Integer> hMap = new HashMap<>();
         private ArrayList<String> stopwordList = new ArrayList<>();
 
@@ -29,55 +29,7 @@ public class TopkCommonWords {
             Configuration conf = context.getConfiguration();
             URI[] cacheFiles = Job.getInstance(conf).getCacheFiles();
             Path stopwordFilePath = new Path(cacheFiles[0].getPath());
-            String stopwordFileName = stopwordFilePath.getName().toString();
-            readStopwordFile(stopwordFileName);
-        }
-
-        public void map(Object key, Text value, Context context) throws IOException {
-            StringTokenizer itr = new StringTokenizer(value.toString());
-            while (itr.hasMoreTokens()) {
-                String nextToken = itr.nextToken();
-                if (!stopwordList.contains(nextToken)) {
-                    if (hMap.containsKey(nextToken)) {
-                        int prevCount = hMap.get(nextToken);
-                        hMap.put(nextToken, prevCount+1);
-                    }
-                    else {
-                        hMap.put(nextToken, 1);
-                    }
-                }
-            }
-        }
-
-        public void cleanup(Context context) throws IOException, InterruptedException {
-            for (Map.Entry<String, Integer> entry : hMap.entrySet()) {
-                String hMapKey = entry.getKey();
-                context.write(new Text(hMapKey), new IntWritable(entry.getValue()));
-            }
-        }
-
-        private void readStopwordFile(String stopwordFileName) {
-            try {
-                BufferedReader fis = new BufferedReader(new FileReader(stopwordFileName));
-                String stopword = null;
-                while ((stopword = fis.readLine()) != null) {
-                    stopwordList.add(stopword);
-                }
-            } catch (IOException e) {
-                System.err.println("Exception while reading stop word file");
-            }
-        }
-    }
-
-    public static class TokenizerMapper2 extends Mapper<Object, Text, Text, IntWritable> {
-        private Map<String, Integer> hMap = new HashMap<>();
-        private ArrayList<String> stopwordList = new ArrayList<>();
-
-        public void setup(Context context) throws IOException {
-            Configuration conf = context.getConfiguration();
-            URI[] cacheFiles = Job.getInstance(conf).getCacheFiles();
-            Path stopwordFilePath = new Path(cacheFiles[0].getPath());
-            String stopwordFileName = stopwordFilePath.getName().toString();
+            String stopwordFileName = stopwordFilePath.getName();
             readStopwordFile(stopwordFileName);
         }
 
@@ -171,8 +123,8 @@ public class TopkCommonWords {
         job.setOutputValueClass(Text.class);
 
         job.addCacheFile(new Path(args[2]).toUri());
-        MultipleInputs.addInputPath(job, new Path(args[0]), TextInputFormat.class, TokenizerMapper1.class);
-        MultipleInputs.addInputPath(job, new Path(args[1]), TextInputFormat.class, TokenizerMapper2.class);
+        MultipleInputs.addInputPath(job, new Path(args[0]), TextInputFormat.class, TokenizerMapper.class);
+        MultipleInputs.addInputPath(job, new Path(args[1]), TextInputFormat.class, TokenizerMapper.class);
         FileOutputFormat.setOutputPath(job, new Path(args[3]));
 
         System.exit(job.waitForCompletion(true) ? 0 : 1);
