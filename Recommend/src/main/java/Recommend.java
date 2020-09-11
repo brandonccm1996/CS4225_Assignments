@@ -6,13 +6,15 @@ import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.input.MultipleInputs;
+import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 
 import java.io.IOException;
 
 public class Recommend {
 
-    public static class Mapper1 extends Mapper<Object, Text, IntWritable, Text> {
+    public static class ScoreMatrixGenerator_Mapper extends Mapper<Object, Text, IntWritable, Text> {
 
         public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
             String[] userItemScore = value.toString().split(",");
@@ -24,10 +26,10 @@ public class Recommend {
         }
     }
 
-    public static class Reducer1 extends Reducer<IntWritable, Text, IntWritable, Text> {
+    public static class ScoreMatrixGenerator_Reducer extends Reducer<IntWritable, Text, IntWritable, Text> {
 
         public void reduce(IntWritable key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
-            System.out.println("REDUCER1 KEY:" + key);
+            System.out.println("ScoreMatrixGenerator_Reducer KEY:" + key);
             StringBuilder userScoresList = new StringBuilder();
             for (Text value : values) {
                 userScoresList.append(value.toString() + "_");
@@ -40,11 +42,11 @@ public class Recommend {
         }
     }
 
-    public static class Mapper2 extends Mapper<Object, Text, Text, IntWritable> {
+    public static class CooccurrenceMatrixGenerator_Mapper extends Mapper<Object, Text, Text, IntWritable> {
 
         public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
-            System.out.println("MAPPER2 KEY:" + key);
-            System.out.println("MAPPER2 VALUE: " + value);
+            System.out.println("CooccurrenceMatrixGenerator_Mapper KEY:" + key);
+            System.out.println("CooccurrenceMatrixGenerator_Mapper VALUE: " + value);
 
             String[] userToItemScores = value.toString().split("\t");
             String itemScores = userToItemScores[1];
@@ -70,46 +72,85 @@ public class Recommend {
         }
     }
 
-    public static class Reducer2 extends Reducer<Text, IntWritable, Text, IntWritable> {
+    public static class CooccurrenceMatrixGenerator_Reducer extends Reducer<Text, IntWritable, Text, IntWritable> {
 
         public void reduce(Text key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
-            int cooccurenceMatrixSum = 0;
+            int cooccurrenceMatrixSum = 0;
             for (IntWritable value : values) {
-                cooccurenceMatrixSum += value.get();
+                cooccurrenceMatrixSum += value.get();
             }
-            context.write(key, new IntWritable(cooccurenceMatrixSum));
+            context.write(key, new IntWritable(cooccurrenceMatrixSum));
+        }
+    }
+
+    public static class ScoreMatrixMultiply_Mapper extends Mapper<Object, Text, Text, IntWritable> {
+
+        public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
+            System.out.println("MAPPER3_1 KEY: " + key);
+            System.out.println("MAPPER3_1 VALUE: " + value);
+
+        }
+    }
+
+    public static class CooccurrenceMatrixMultiply_Mapper extends Mapper<Object, Text, Text, IntWritable> {
+
+        public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
+            System.out.println("MAPPER3_2 KEY: " + key);
+            System.out.println("MAPPER3_2 VALUE: " + value);
+        }
+    }
+
+    public static class Reducer3 extends Reducer<Text, IntWritable, Text, IntWritable> {
+
+        public void reduce(Text key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
+
         }
     }
 
     public static void main(String[] args) throws Exception {
         Configuration conf1 = new Configuration();
-        Job job1 = Job.getInstance(conf1, "recommend part 1");
+        Job job1 = Job.getInstance(conf1, "score matrix generator");
 
         job1.setJarByClass(Recommend.class);
-        job1.setMapperClass(Mapper1.class);
-        job1.setCombinerClass(Reducer1.class);
-        job1.setReducerClass(Reducer1.class);
+        job1.setMapperClass(ScoreMatrixGenerator_Mapper.class);
+        job1.setCombinerClass(ScoreMatrixGenerator_Reducer.class);
+        job1.setReducerClass(ScoreMatrixGenerator_Reducer.class);
 
         job1.setOutputKeyClass(IntWritable.class);
         job1.setOutputValueClass(Text.class);
         FileInputFormat.addInputPath(job1, new Path(args[0]));
-        FileOutputFormat.setOutputPath(job1, new Path("temp_output1"));
+        FileOutputFormat.setOutputPath(job1, new Path("temp_output_score_matrix"));
 
         job1.waitForCompletion(true);
 
         Configuration conf2 = new Configuration();
-        Job job2 = Job.getInstance(conf2, "recommend part 2");
+        Job job2 = Job.getInstance(conf2, "cooccurrence matrix generator");
 
         job2.setJarByClass(Recommend.class);
-        job2.setMapperClass(Mapper2.class);
-        job2.setCombinerClass(Reducer2.class);
-        job2.setReducerClass(Reducer2.class);
+        job2.setMapperClass(CooccurrenceMatrixGenerator_Mapper.class);
+        job2.setCombinerClass(CooccurrenceMatrixGenerator_Reducer.class);
+        job2.setReducerClass(CooccurrenceMatrixGenerator_Reducer.class);
 
         job2.setOutputKeyClass(Text.class);
         job2.setOutputValueClass(IntWritable.class);
-        FileInputFormat.addInputPath(job2, new Path("temp_output1"));
-        FileOutputFormat.setOutputPath(job2, new Path("temp_output2"));
+        FileInputFormat.addInputPath(job2, new Path("temp_output_score_matrix"));
+        FileOutputFormat.setOutputPath(job2, new Path("temp_output_cooccurrence_matrix"));
 
-        System.exit(job2.waitForCompletion(true) ? 0 : 1);
+        job2.waitForCompletion(true);
+
+        Configuration conf3 = new Configuration();
+        Job job3 = Job.getInstance(conf3, "matrix multiplication");
+
+        job3.setJarByClass(Recommend.class);
+        job3.setCombinerClass(Reducer3.class);
+        job3.setReducerClass(Reducer3.class);
+
+        job3.setOutputKeyClass(Text.class);
+        job3.setOutputValueClass(IntWritable.class);
+        MultipleInputs.addInputPath(job3, new Path("temp_output_score_matrix"), TextInputFormat.class, ScoreMatrixMultiply_Mapper.class);
+        MultipleInputs.addInputPath(job3, new Path("temp_output_cooccurrence_matrix"), TextInputFormat.class, CooccurrenceMatrixMultiply_Mapper.class);
+        FileOutputFormat.setOutputPath(job3, new Path("temp_output3"));
+
+        System.exit(job3.waitForCompletion(true) ? 0 : 1);
     }
 }
