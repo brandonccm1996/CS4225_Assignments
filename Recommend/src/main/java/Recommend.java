@@ -32,7 +32,7 @@ public class Recommend {
     public static class ScoreMatrixGenerator_Reducer extends Reducer<IntWritable, Text, IntWritable, Text> {
 
         public void reduce(IntWritable key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
-            System.out.println("ScoreMatrixGenerator_Reducer KEY:" + key);
+//            System.out.println("ScoreMatrixGenerator_Reducer KEY:" + key);
             StringBuilder userScoresList = new StringBuilder();
             for (Text value : values) {
                 userScoresList.append(value.toString() + "_");
@@ -48,14 +48,13 @@ public class Recommend {
     public static class CooccurrenceMatrixGenerator_Mapper extends Mapper<Object, Text, Text, IntWritable> {
 
         public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
-            System.out.println("CooccurrenceMatrixGenerator_Mapper KEY:" + key);
-            System.out.println("CooccurrenceMatrixGenerator_Mapper VALUE: " + value);
+//            System.out.println("CooccurrenceMatrixGenerator_Mapper KEY:" + key);
+//            System.out.println("CooccurrenceMatrixGenerator_Mapper VALUE: " + value);
 
             String[] userToItemScores = value.toString().split("\t");
             String itemScores = userToItemScores[1];
 
             String[] itemScoresList = itemScores.split("_");
-            System.out.println(itemScoresList[0] + "[]" + itemScoresList[1]+ "[]" + itemScoresList[2]);
             for (int i = 0; i < itemScoresList.length; i++) {
                 for (int j = 0; j < itemScoresList.length; j++) {
                     String[] itemScore1 = itemScoresList[i].split(",");
@@ -89,8 +88,8 @@ public class Recommend {
     public static class ScoreMatrixMultiply_Mapper extends Mapper<Object, Text, IntWritable, Text> {
 
         public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
-            System.out.println("MAPPER3_1 KEY: " + key);
-            System.out.println("MAPPER3_1 VALUE: " + value);
+//            System.out.println("MAPPER3_1 KEY: " + key);
+//            System.out.println("MAPPER3_1 VALUE: " + value);
 
             String[] userToItemScores = value.toString().split("\t");
             String user = userToItemScores[0];
@@ -110,8 +109,8 @@ public class Recommend {
     public static class CooccurrenceMatrixMultiply_Mapper extends Mapper<Object, Text, IntWritable, Text> {
 
         public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
-            System.out.println("MAPPER3_2 KEY: " + key);
-            System.out.println("MAPPER3_2 VALUE: " + value);
+//            System.out.println("MAPPER3_2 KEY: " + key);
+//            System.out.println("MAPPER3_2 VALUE: " + value);
 
             String[] itemsToCooccurrenceValue = value.toString().split("\t");
             String[] items = itemsToCooccurrenceValue[0].split(",");
@@ -156,10 +155,37 @@ public class Recommend {
                     double score = userScoreMapElement.getValue();
                     int item = itemCooccurrenceMapElement.getKey();
                     int cooccurrence = itemCooccurrenceMapElement.getValue();
+                    System.out.println("MAPPING: " + "user: " + user + " score: " + score + " item: " + item + " cooccurrence: " + cooccurrence);
 
                     context.write(new Text(user + "," + item), new DoubleWritable(score*cooccurrence));
                 }
             }
+        }
+    }
+
+    public static class SumResults_Mapper extends Mapper<Object, Text, Text, DoubleWritable> {
+
+        public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
+            String[] userItemToMultiplicationResult = value.toString().split("\t");
+            String userItem = userItemToMultiplicationResult[0];
+            double multiplicationResult = Double.parseDouble((userItemToMultiplicationResult[1]));
+            context.write(new Text(userItem), new DoubleWritable(multiplicationResult));
+        }
+    }
+
+    public static class SumResults_Reducer extends Reducer<Text, DoubleWritable, IntWritable, Text> {
+
+        public void reduce(Text key, Iterable<DoubleWritable> values, Context context) throws IOException, InterruptedException {
+            String[] userItem = key.toString().split(",");
+            int user = Integer.parseInt(userItem[0]);
+            String item = userItem[1];
+
+            double sum = 0;
+            for (DoubleWritable value : values) {
+                sum += value.get();
+            }
+
+            context.write(new IntWritable(user), new Text(item + "," + sum));
         }
     }
 
@@ -209,6 +235,23 @@ public class Recommend {
         MultipleInputs.addInputPath(job3, new Path("temp_output_cooccurrence_matrix"), TextInputFormat.class, CooccurrenceMatrixMultiply_Mapper.class);
         FileOutputFormat.setOutputPath(job3, new Path("temp_output_multiplication_results"));
 
-        System.exit(job3.waitForCompletion(true) ? 0 : 1);
+        job3.waitForCompletion(true);
+
+        Configuration conf4 = new Configuration();
+        Job job4 = Job.getInstance(conf4, "sum up multiplication results");
+
+        job4.setJarByClass(Recommend.class);
+        job4.setMapperClass(SumResults_Mapper.class);
+//        job4.setCombinerClass(SumResults_Reducer.class);
+        job4.setReducerClass(SumResults_Reducer.class);
+
+        job4.setMapOutputKeyClass(Text.class);
+        job4.setMapOutputValueClass(DoubleWritable.class);
+        job4.setOutputKeyClass(IntWritable.class);
+        job4.setOutputValueClass(Text.class);
+        FileInputFormat.addInputPath(job4, new Path("temp_output_multiplication_results"));
+        FileOutputFormat.setOutputPath(job4, new Path("temp_output_final"));
+
+        System.exit(job4.waitForCompletion(true) ? 0 : 1);
     }
 }
