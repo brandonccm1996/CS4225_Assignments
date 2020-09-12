@@ -1,5 +1,6 @@
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.DoubleWritable;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
@@ -11,6 +12,8 @@ import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 public class Recommend {
 
@@ -83,27 +86,80 @@ public class Recommend {
         }
     }
 
-    public static class ScoreMatrixMultiply_Mapper extends Mapper<Object, Text, Text, IntWritable> {
+    public static class ScoreMatrixMultiply_Mapper extends Mapper<Object, Text, IntWritable, Text> {
 
         public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
             System.out.println("MAPPER3_1 KEY: " + key);
             System.out.println("MAPPER3_1 VALUE: " + value);
 
+            String[] userToItemScores = value.toString().split("\t");
+            String user = userToItemScores[0];
+            String itemScores = userToItemScores[1];
+
+            String[] itemScoresList = itemScores.split("_");
+            for (int i = 0; i < itemScoresList.length; i++) {
+                String itemScore[] = itemScoresList[i].split(",");
+                int item = Integer.parseInt(itemScore[0]);
+                String score = itemScore[1];
+
+                context.write(new IntWritable(item), new Text("SCORE\t" + user + "," + score));
+            }
         }
     }
 
-    public static class CooccurrenceMatrixMultiply_Mapper extends Mapper<Object, Text, Text, IntWritable> {
+    public static class CooccurrenceMatrixMultiply_Mapper extends Mapper<Object, Text, IntWritable, Text> {
 
         public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
             System.out.println("MAPPER3_2 KEY: " + key);
             System.out.println("MAPPER3_2 VALUE: " + value);
+
+            String[] itemsToCooccurrenceValue = value.toString().split("\t");
+            String[] items = itemsToCooccurrenceValue[0].split(",");
+            int item1 = Integer.parseInt(items[0]);
+            String item2 = items[1];
+            String cooccurrenceValue = itemsToCooccurrenceValue[1];
+
+            context.write(new IntWritable(item1), new Text("COOC\t" + item2 + "," + cooccurrenceValue));
         }
     }
 
-    public static class Reducer3 extends Reducer<Text, IntWritable, Text, IntWritable> {
+    public static class CooccurrenceMatrixMultiplyScoreMatrix_Reducer extends Reducer<IntWritable, Text, Text, DoubleWritable> {
 
-        public void reduce(Text key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
+        public void reduce(IntWritable key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
+            System.out.println("REDUCER3 KEY: " + key);
 
+            Map<Integer, Double> userScoreMap = new HashMap<>();
+            Map<Integer, Integer> itemCooccurrenceMap = new HashMap<>();
+
+            for (Text value : values) {
+                System.out.println("REDUCER3 VALUE: " + value);
+                String[] valueString = value.toString().split("\t");
+                String identifier = valueString[0];
+
+                if (identifier.contains("SCORE")) {
+                    String userScore[] = valueString[1].split(",");
+                    int user = Integer.parseInt(userScore[0]);
+                    double score = Double.parseDouble(userScore[1]);
+                    userScoreMap.put(user, score);
+                }
+                else if (identifier.contains("COOC")) {
+                    String itemCooccurrence[] = valueString[1].split(",");
+                    int item = Integer.parseInt(itemCooccurrence[0]);
+                    int coOccurrence = Integer.parseInt(itemCooccurrence[1]);
+                    itemCooccurrenceMap.put(item, coOccurrence);
+                }
+            }
+
+            for (Map.Entry<Integer, Double> userScoreMapElement : userScoreMap.entrySet()) {
+                for (Map.Entry<Integer, Integer> itemCooccurrenceMapElement : itemCooccurrenceMap.entrySet()) {
+                    int user = userScoreMapElement.getKey();
+                    double score = userScoreMapElement.getValue();
+                    int item = itemCooccurrenceMapElement.getKey();
+                    int cooccurrence = itemCooccurrenceMapElement.getValue();
+
+                    context.write(new Text(user + "," + item), new DoubleWritable(score*cooccurrence));
+                }
+            }
         }
     }
 
@@ -142,14 +198,16 @@ public class Recommend {
         Job job3 = Job.getInstance(conf3, "matrix multiplication");
 
         job3.setJarByClass(Recommend.class);
-        job3.setCombinerClass(Reducer3.class);
-        job3.setReducerClass(Reducer3.class);
+//        job3.setCombinerClass(Reducer3.class);
+        job3.setReducerClass(CooccurrenceMatrixMultiplyScoreMatrix_Reducer.class);
 
+        job3.setMapOutputKeyClass(IntWritable.class);
+        job3.setMapOutputValueClass(Text.class);
         job3.setOutputKeyClass(Text.class);
-        job3.setOutputValueClass(IntWritable.class);
+        job3.setOutputValueClass(DoubleWritable.class);
         MultipleInputs.addInputPath(job3, new Path("temp_output_score_matrix"), TextInputFormat.class, ScoreMatrixMultiply_Mapper.class);
         MultipleInputs.addInputPath(job3, new Path("temp_output_cooccurrence_matrix"), TextInputFormat.class, CooccurrenceMatrixMultiply_Mapper.class);
-        FileOutputFormat.setOutputPath(job3, new Path("temp_output3"));
+        FileOutputFormat.setOutputPath(job3, new Path("temp_output_multiplication_results"));
 
         System.exit(job3.waitForCompletion(true) ? 0 : 1);
     }
