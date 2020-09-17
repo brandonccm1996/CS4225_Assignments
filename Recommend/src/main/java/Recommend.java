@@ -1,3 +1,7 @@
+// Matric Number: A0172029J
+// Name: Cheong Chee Mun Brandon
+// Recommend.java
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.DoubleWritable;
@@ -32,13 +36,13 @@ public class Recommend {
     public static class ScoreMatrixGenerator_Reducer extends Reducer<IntWritable, Text, IntWritable, Text> {
 
         public void reduce(IntWritable key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
-//            System.out.println("ScoreMatrixGenerator_Reducer KEY:" + key);
+            /*System.out.println("ScoreMatrixGenerator_Reducer KEY:" + key);*/
             StringBuilder userScoresList = new StringBuilder();
             for (Text value : values) {
                 userScoresList.append(value.toString() + "_");
             }
 
-            // to remove the trailing |
+            /*to remove the trailing |*/
             userScoresList.setLength(userScoresList.length()-1);
 
             context.write(key,new Text(userScoresList.toString()));
@@ -48,8 +52,8 @@ public class Recommend {
     public static class CooccurrenceMatrixGenerator_Mapper extends Mapper<Object, Text, Text, IntWritable> {
 
         public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
-//            System.out.println("CooccurrenceMatrixGenerator_Mapper KEY:" + key);
-//            System.out.println("CooccurrenceMatrixGenerator_Mapper VALUE: " + value);
+            /*System.out.println("CooccurrenceMatrixGenerator_Mapper KEY:" + key);
+             *             System.out.println("CooccurrenceMatrixGenerator_Mapper VALUE: " + value);*/
 
             String[] userToItemScores = value.toString().split("\t");
             String itemScores = userToItemScores[1];
@@ -88,8 +92,8 @@ public class Recommend {
     public static class ScoreMatrixMultiply_Mapper extends Mapper<Object, Text, IntWritable, Text> {
 
         public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
-//            System.out.println("MAPPER3_1 KEY: " + key);
-//            System.out.println("MAPPER3_1 VALUE: " + value);
+            /*System.out.println("MAPPER3_1 KEY: " + key);
+             *             System.out.println("MAPPER3_1 VALUE: " + value);*/
 
             String[] userToItemScores = value.toString().split("\t");
             String user = userToItemScores[0];
@@ -109,8 +113,8 @@ public class Recommend {
     public static class CooccurrenceMatrixMultiply_Mapper extends Mapper<Object, Text, IntWritable, Text> {
 
         public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
-//            System.out.println("MAPPER3_2 KEY: " + key);
-//            System.out.println("MAPPER3_2 VALUE: " + value);
+            /*System.out.println("MAPPER3_2 KEY: " + key);
+             *             System.out.println("MAPPER3_2 VALUE: " + value);*/
 
             String[] itemsToCooccurrenceValue = value.toString().split("\t");
             String[] items = itemsToCooccurrenceValue[0].split(",");
@@ -125,13 +129,13 @@ public class Recommend {
     public static class CooccurrenceMatrixMultiplyScoreMatrix_Reducer extends Reducer<IntWritable, Text, Text, DoubleWritable> {
 
         public void reduce(IntWritable key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
-            System.out.println("REDUCER3 KEY: " + key);
+            /*System.out.println("REDUCER3 KEY: " + key);*/
 
             Map<Integer, Double> userScoreMap = new HashMap<>();
             Map<Integer, Integer> itemCooccurrenceMap = new HashMap<>();
 
             for (Text value : values) {
-                System.out.println("REDUCER3 VALUE: " + value);
+                /*System.out.println("REDUCER3 VALUE: " + value);*/
                 String[] valueString = value.toString().split("\t");
                 String identifier = valueString[0];
 
@@ -155,7 +159,7 @@ public class Recommend {
                     double score = userScoreMapElement.getValue();
                     int item = itemCooccurrenceMapElement.getKey();
                     int cooccurrence = itemCooccurrenceMapElement.getValue();
-                    System.out.println("MAPPING: " + "user: " + user + " score: " + score + " item: " + item + " cooccurrence: " + cooccurrence);
+                    /*System.out.println("MAPPING: " + "user: " + user + " score: " + score + " item: " + item + " cooccurrence: " + cooccurrence);*/
 
                     context.write(new Text(user + "," + item), new DoubleWritable(score*cooccurrence));
                 }
@@ -163,29 +167,54 @@ public class Recommend {
         }
     }
 
-    public static class SumResults_Mapper extends Mapper<Object, Text, Text, DoubleWritable> {
+    public static class MultiplicationResults_Mapper extends Mapper<Object, Text, Text, Text> {
 
         public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
             String[] userItemToMultiplicationResult = value.toString().split("\t");
             String userItem = userItemToMultiplicationResult[0];
-            double multiplicationResult = Double.parseDouble((userItemToMultiplicationResult[1]));
-            context.write(new Text(userItem), new DoubleWritable(multiplicationResult));
+            String multiplicationResult = userItemToMultiplicationResult[1];
+            context.write(new Text(userItem), new Text(multiplicationResult));
         }
     }
 
-    public static class SumResults_Reducer extends Reducer<Text, DoubleWritable, IntWritable, Text> {
+    public static class UserScoresAlreadyGiven_Mapper extends Mapper<Object, Text, Text, Text> {
 
-        public void reduce(Text key, Iterable<DoubleWritable> values, Context context) throws IOException, InterruptedException {
+        public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
+            String[] userItemScore = value.toString().split(",");
+            String user = userItemScore[0];
+            String item = userItemScore[1];
+            String score = userItemScore[2];
+
+            context.write(new Text(user + "," + item), new Text("UserGivenScore"));
+        }
+    }
+
+    public static class SumResults_Reducer extends Reducer<Text, Text, IntWritable, Text> {
+
+        public void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
+            /*System.out.println("SumResults_Reducer");
+             *             System.out.println(key);*/
             String[] userItem = key.toString().split(",");
             int user = Integer.parseInt(userItem[0]);
             String item = userItem[1];
 
+            boolean userAlreadyGivenScore = false;
             double sum = 0;
-            for (DoubleWritable value : values) {
-                sum += value.get();
+
+            for (Text value : values) {
+                /*System.out.println(value);*/
+                if (value.toString().contains("UserGivenScore")) {
+                    userAlreadyGivenScore = true;
+                    break;
+                } else {
+                    double multiplicationResult = Double.parseDouble(value.toString());
+                    sum += multiplicationResult;
+                }
             }
 
-            context.write(new IntWritable(user), new Text(item + "," + sum));
+            if (!userAlreadyGivenScore) {
+                context.write(new IntWritable(user), new Text(item + "," + sum));
+            }
         }
     }
 
@@ -201,7 +230,7 @@ public class Recommend {
         job1.setOutputKeyClass(IntWritable.class);
         job1.setOutputValueClass(Text.class);
         FileInputFormat.addInputPath(job1, new Path(args[0]));
-        FileOutputFormat.setOutputPath(job1, new Path("temp_output_score_matrix"));
+        FileOutputFormat.setOutputPath(job1, new Path("recommendation/temp_output_score_matrix"));
 
         job1.waitForCompletion(true);
 
@@ -215,8 +244,8 @@ public class Recommend {
 
         job2.setOutputKeyClass(Text.class);
         job2.setOutputValueClass(IntWritable.class);
-        FileInputFormat.addInputPath(job2, new Path("temp_output_score_matrix"));
-        FileOutputFormat.setOutputPath(job2, new Path("temp_output_cooccurrence_matrix"));
+        FileInputFormat.addInputPath(job2, new Path("recommendation/temp_output_score_matrix"));
+        FileOutputFormat.setOutputPath(job2, new Path("recommendation/temp_output_cooccurrence_matrix"));
 
         job2.waitForCompletion(true);
 
@@ -224,16 +253,16 @@ public class Recommend {
         Job job3 = Job.getInstance(conf3, "matrix multiplication");
 
         job3.setJarByClass(Recommend.class);
-//        job3.setCombinerClass(Reducer3.class);
+        /*job3.setCombinerClass(Reducer3.class);*/
         job3.setReducerClass(CooccurrenceMatrixMultiplyScoreMatrix_Reducer.class);
 
         job3.setMapOutputKeyClass(IntWritable.class);
         job3.setMapOutputValueClass(Text.class);
         job3.setOutputKeyClass(Text.class);
         job3.setOutputValueClass(DoubleWritable.class);
-        MultipleInputs.addInputPath(job3, new Path("temp_output_score_matrix"), TextInputFormat.class, ScoreMatrixMultiply_Mapper.class);
-        MultipleInputs.addInputPath(job3, new Path("temp_output_cooccurrence_matrix"), TextInputFormat.class, CooccurrenceMatrixMultiply_Mapper.class);
-        FileOutputFormat.setOutputPath(job3, new Path("temp_output_multiplication_results"));
+        MultipleInputs.addInputPath(job3, new Path("recommendation/temp_output_score_matrix"), TextInputFormat.class, ScoreMatrixMultiply_Mapper.class);
+        MultipleInputs.addInputPath(job3, new Path("recommendation/temp_output_cooccurrence_matrix"), TextInputFormat.class, CooccurrenceMatrixMultiply_Mapper.class);
+        FileOutputFormat.setOutputPath(job3, new Path("recommendation/temp_output_multiplication_results"));
 
         job3.waitForCompletion(true);
 
@@ -241,16 +270,17 @@ public class Recommend {
         Job job4 = Job.getInstance(conf4, "sum up multiplication results");
 
         job4.setJarByClass(Recommend.class);
-        job4.setMapperClass(SumResults_Mapper.class);
-//        job4.setCombinerClass(SumResults_Reducer.class);
+        job4.setMapperClass(MultiplicationResults_Mapper.class);
+        /*job4.setCombinerClass(SumResults_Reducer.class);*/
         job4.setReducerClass(SumResults_Reducer.class);
 
         job4.setMapOutputKeyClass(Text.class);
-        job4.setMapOutputValueClass(DoubleWritable.class);
+        job4.setMapOutputValueClass(Text.class);
         job4.setOutputKeyClass(IntWritable.class);
         job4.setOutputValueClass(Text.class);
-        FileInputFormat.addInputPath(job4, new Path("temp_output_multiplication_results"));
-        FileOutputFormat.setOutputPath(job4, new Path("temp_output_final"));
+        MultipleInputs.addInputPath(job4, new Path("recommendation/temp_output_multiplication_results"), TextInputFormat.class, MultiplicationResults_Mapper.class);
+        MultipleInputs.addInputPath(job4, new Path(args[0]), TextInputFormat.class, UserScoresAlreadyGiven_Mapper.class);
+        FileOutputFormat.setOutputPath(job4, new Path(args[1]));
 
         System.exit(job4.waitForCompletion(true) ? 0 : 1);
     }
