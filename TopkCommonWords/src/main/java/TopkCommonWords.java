@@ -51,8 +51,9 @@ public class TopkCommonWords {
 
         public void cleanup(Context context) throws IOException, InterruptedException {
             for (Map.Entry<String, Integer> entry : hMap.entrySet()) {
-                String hMapKey = entry.getKey();
-                context.write(new Text(hMapKey), new IntWritable(entry.getValue()));
+                String word = entry.getKey();
+                int count = entry.getValue();
+                context.write(new Text(word), new IntWritable(count));
             }
         }
 
@@ -84,7 +85,9 @@ public class TopkCommonWords {
                 }
             }
             int countToOutput = Math.min(file1count, file2count);
-            hMap.put(key.toString(), countToOutput);
+            if (countToOutput > 0) {
+                hMap.put(key.toString(), countToOutput);
+            }
         }
 
         public void cleanup(Context context) throws IOException, InterruptedException {
@@ -104,7 +107,9 @@ public class TopkCommonWords {
 
             int numToOutput = Math.min(allCommonWords.size(), 20);
             for (int i = 0; i < numToOutput; i++) {
-                context.write(new IntWritable(allCommonWords.get(i).getKey()), new Text(allCommonWords.get(i).getValue()));
+                int countOfCommonWord = allCommonWords.get(i).getKey();
+                String commonWord = allCommonWords.get(i).getValue();
+                context.write(new IntWritable(countOfCommonWord), new Text(commonWord));
             }
         }
     }
