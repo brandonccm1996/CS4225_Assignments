@@ -285,3 +285,8 @@ public class Recommend {
         System.exit(job4.waitForCompletion(true) ? 0 : 1);
     }
 }
+
+/*
+Note: a few temp_output directories will be created while running, but they have not been committed
+to git because they are too large, so only the output directory is present in recommendation folder
+ */
