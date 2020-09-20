@@ -42,10 +42,10 @@ public class Recommend {
                 userScoresList.append(value.toString() + "_");
             }
 
-            /*to remove the trailing |*/
+            /*to remove the trailing _*/
             userScoresList.setLength(userScoresList.length()-1);
 
-            context.write(key,new Text(userScoresList.toString()));
+            context.write(key, new Text(userScoresList.toString()));
         }
     }
 
@@ -93,7 +93,7 @@ public class Recommend {
 
         public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
             /*System.out.println("MAPPER3_1 KEY: " + key);
-             *             System.out.println("MAPPER3_1 VALUE: " + value);*/
+             *System.out.println("MAPPER3_1 VALUE: " + value);*/
 
             String[] userToItemScores = value.toString().split("\t");
             String user = userToItemScores[0];
@@ -114,7 +114,7 @@ public class Recommend {
 
         public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
             /*System.out.println("MAPPER3_2 KEY: " + key);
-             *             System.out.println("MAPPER3_2 VALUE: " + value);*/
+             *System.out.println("MAPPER3_2 VALUE: " + value);*/
 
             String[] itemsToCooccurrenceValue = value.toString().split("\t");
             String[] items = itemsToCooccurrenceValue[0].split(",");
@@ -193,7 +193,7 @@ public class Recommend {
 
         public void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
             /*System.out.println("SumResults_Reducer");
-             *             System.out.println(key);*/
+             *System.out.println(key);*/
             String[] userItem = key.toString().split(",");
             int user = Integer.parseInt(userItem[0]);
             String item = userItem[1];
