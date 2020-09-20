@@ -135,3 +135,35 @@ public class TopkCommonWords {
         System.exit(job.waitForCompletion(true) ? 0 : 1);
     }
 }
+
+/*
+Note:
+Not sure why this TopkCommonWords.java file works correctly on NUS SOC cluster, but not on my local
+Windows machine. On my local Windows machine, it will encouter exception while reading
+stopwords.txt thus stopwords are not being removed from the output.
+
+The cm_output in the commonwords folder is the wrong output that will be obtained when running on
+my local Windows machine. The correct output should be in the answers.txt file.
+
+To make it run correctly on my local Windows machine, I have to change setup function and
+readStopwordFile function to the following:
+
+public void setup(Context context) throws IOException {
+    Configuration conf = context.getConfiguration();
+    URI[] cacheFiles = Job.getInstance(conf).getCacheFiles();
+    Path stopwordFilePath = new Path(cacheFiles[0].getPath());
+    readStopwordFile(stopwordFilePath);
+}
+
+private void readStopwordFile(Path stopwordFile) {
+    try {
+        BufferedReader fis = new BufferedReader(new FileReader(stopwordFile.toString()));
+        String stopword = null;
+        while ((stopword = fis.readLine()) != null) {
+            stopwordList.add(stopword);
+        }
+    } catch (IOException e) {
+        System.err.println("Exception while reading stop word file");
+    }
+}
+ */
