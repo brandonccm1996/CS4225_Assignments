@@ -25,10 +25,10 @@ object Assignment2 extends Assignment2 {
     val grouped = groupedPostings(raw)
     val scored  = scoredPostings(grouped)
     val vectors = vectorPostings(scored)
-//
-//
-//    val means   = kmeans(sampleVectors(vectors), vectors, debug = true)
-//    val results = clusterResults(means, vectors)
+
+
+    val means   = kmeans(sampleVectors(vectors), vectors, 1, debug = true)
+    val results = clusterResults(means, vectors)
 //    printResults(results)
   }
 }
@@ -131,13 +131,27 @@ class Assignment2 extends Serializable {
 //    scoredPosts.take(10).foreach(println)
 //    scoredPosts.take(10).foreach(scoredPost => println(Domains.indexOf(scoredPost._1.tags.get)))
 
-    // Return (D*X, S)
+    // Extract just the field needed into a local variable to prevent passing all of this
+    val domains_ = this.Domains
+
+    // Return (D*X, S) after removing qns with no tags
     scoredPosts
       .filter(_._1.tags != None)
-      .map(scoredPost => (Domains.indexOf(scoredPost._1.tags.get) * DomainSpread, scoredPost._2))
+      .map {
+        case (qnPosting, maxAnsScore) => {
+          val indexInDomainList = domains_.indexOf(qnPosting.tags.get)
+          (indexInDomainList * DomainSpread, maxAnsScore)
+        }
+      }
   }
 
 
+  /** Select k random points as initial centroids */
+  def sampleVectors(vectors: RDD[(Int, Int)]): Array[(Int, Int)] = {
+//    println("sampleVectors")
+//    vectors.take(10).foreach(println)
+    vectors.takeSample(true, kmeansKernels)
+  }
 
 
   //
@@ -147,11 +161,72 @@ class Assignment2 extends Serializable {
   //
 
   /** Main kmeans computation */
-//  @tailrec final def kmeans(): = {
-//
-//    //ToDo
-//
-//  }
+  @tailrec final def kmeans(clusterCentroids: Array[(Int, Int)], vectors: RDD[(Int, Int)], iterationCount: Int, debug: Boolean): Array[(Int, Int)] = {
+    println("kMeans")
+
+    // Extract just the field needed into a local variable to prevent passing all of this
+    val kmeansMaxIterations_ = this.kmeansMaxIterations
+
+    // return every centroid with the vectors in its cluster
+    val centroidForGroupedVectors = obtainCentroidWithGroupedVectors(clusterCentroids, vectors)
+
+    // find new centroid locations based on their grouped vectors
+    val oldAndNewCentroids = centroidForGroupedVectors.map{
+      case(centroid, vector) => {
+        val newCentroid = averageVectors(vector)
+        (centroid, newCentroid)
+      }
+    }.collect()
+
+    // get new cluster centroids
+    val newClusterCentroids = clusterCentroids map(identity)
+    oldAndNewCentroids.foreach {
+      case(oldCentroid, newCentroid) => {
+        newClusterCentroids.update(oldCentroid, newCentroid)
+      }
+    }
+
+    val distance = euclideanDistance(clusterCentroids, newClusterCentroids)
+    val hasConverged = converged(distance)
+
+    if (hasConverged || iterationCount > kmeansMaxIterations_) {
+      newClusterCentroids
+    } else {
+      kmeans(newClusterCentroids, vectors, iterationCount+1, debug = true)
+    }
+  }
+
+  def clusterResults(clusterCentroids: Array[(Int, Int)], vectors: RDD[(Int, Int)]): /*Array[(String, Int, Int, Int)]*/ Unit = {
+    println("clusterResults")
+    // Extract just the field needed into a local variable to prevent passing all of this
+    val domains_ = this.Domains
+    val domainSpread_ = this.DomainSpread
+
+    // return every centroid with the vectors in its cluster
+    val centroidForGroupedVectors = obtainCentroidWithGroupedVectors(clusterCentroids, vectors)
+
+//    println(centroidForGroupedVectors)
+
+    centroidForGroupedVectors.foreach {
+      case (centroid, groupedVectors) => {
+        println(centroid)
+        println(groupedVectors)
+      }
+    }
+
+    val results = centroidForGroupedVectors.map {
+      case (centroid, groupedVectors) => {
+        val domainId = groupedVectors.groupBy(_._1).mapValues(_.size).maxBy(_._2)._1
+        val domainName = domains_(domainId/domainSpread_)
+        val clusterSize = groupedVectors.size
+        val medianScore = computeMedian(groupedVectors)
+        val avgScore = computeAverage(groupedVectors)
+        (domainName, clusterSize, medianScore, avgScore)
+      }
+    }
+
+    results.collect().map(_._2)
+  }
 
 
   //
@@ -159,6 +234,19 @@ class Assignment2 extends Serializable {
   //  Kmeans utilities (Just some cases, you can implement your own utilities.)
   //
   //
+
+  def obtainCentroidWithGroupedVectors(clusterCentroids: Array[(Int, Int)], vectors: RDD[(Int, Int)]): RDD[(Int, Iterable[(Int, Int)])] = {
+    // calculate closest pt ie centroid for each vector
+    val centroidForEachVector = vectors.map(vector => {
+      val closestPt = findClosest(vector, clusterCentroids)
+      (closestPt, vector)
+    })
+
+    // return every centroid with the vectors in its cluster
+    val centroidForGroupedVectors = centroidForEachVector.groupByKey()
+    centroidForGroupedVectors
+  }
+
 
   /** Decide whether the kmeans clustering converged */
   def converged(distance: Double) = distance < kmeansEta
@@ -171,6 +259,7 @@ class Assignment2 extends Serializable {
     part1 + part2
   }
 
+
   /** Return the euclidean distance between two points */
   def euclideanDistance(a1: Array[(Int, Int)], a2: Array[(Int, Int)]): Double = {
     assert(a1.length == a2.length)
@@ -182,6 +271,7 @@ class Assignment2 extends Serializable {
     }
     sum
   }
+
 
   /** Return the closest point */
   def findClosest(p: (Int, Int), centers: Array[(Int, Int)]): Int = {
@@ -221,9 +311,23 @@ class Assignment2 extends Serializable {
     if (length % 2 == 0) (lower.last + upper.head) / 2 else upper.head
   }
 
+  def computeAverage(a: Iterable[(Int, Int)]) = {
+    val s = a.map(x => x._2).toArray
+    var sum = 0
+    s.foreach(score => {
+      sum = sum + score
+    })
+    sum/s.length
+  }
+
+
   //  Displaying results:
 
-//  def printResults(results: ):  = {
+//  def printResults(results: Array[(String, Int, Int, Int): Unit  = {
+//    results.foreach {
+//      case(centroid, domainSize, medianScore, avgScore) => {
 //
+//      }
+//    }
 //  }
 }
