@@ -25,11 +25,11 @@ object Assignment2 extends Assignment2 {
     val grouped = groupedPostings(raw)
     val scored  = scoredPostings(grouped)
     val vectors = vectorPostings(scored)
-
-
-    val means   = kmeans(sampleVectors(vectors), vectors, debug = true)
-    val results = clusterResults(means, vectors)
-    printResults(results)
+//
+//
+//    val means   = kmeans(sampleVectors(vectors), vectors, debug = true)
+//    val results = clusterResults(means, vectors)
+//    printResults(results)
   }
 }
 
@@ -77,26 +77,64 @@ class Assignment2 extends Serializable {
 
 
   /** Group the questions and answers together */
-  def groupedPostings():  = {
+  def groupedPostings(rawPosts: RDD[Posting]): RDD[(Int, Iterable[(Posting, Posting)])] = {
     // Filter the questions and answers separately
     // Prepare them for a join operation by extracting the QID value in the first element of a tuple.
 
+//    println("rawPosts")
+//    rawPosts.take(10).foreach(println)
+
+    val qns = rawPosts
+      .filter(_.postingType == 1)
+      .map(rawPostQn => (rawPostQn.id, rawPostQn))
+
+    val ans = rawPosts
+      .filter(_.postingType == 2)
+      .map(rawPostAns => (rawPostAns.parentId.get, rawPostAns))
+
+    // join qns and ans with same id (for qns) or parentId (for ans)
+    qns.join(ans).groupByKey()
   }
 
 
   /** Compute the maximum score for each posting */
-  def scoredPostings():  = {
+  def scoredPostings(groupedPosts: RDD[(Int, Iterable[(Posting, Posting)])]): RDD[(Posting, Int)]  = {
+//    println("groupedPosts")
+//    groupedPosts.take(10).foreach(println)
+//    groupedPosts.take(10).foreach(groupedPost => {
+//      println(groupedPost._1)
+//      println(groupedPost._2)
+//    })
 
-    //ToDo
-    //
+    groupedPosts.map {
+      case(id, qnAndAnsPosts) => {
+        var maxScore = 0
+
+        val qnsPostsArr = qnAndAnsPosts.map(qnAndAnsPost => qnAndAnsPost._1).toArray
+        val ansPostsArr = qnAndAnsPosts.map(qnAndAnsPost => qnAndAnsPost._2).toArray
+        for (x <- 0 to ansPostsArr.size-1) {
+          if (ansPostsArr(x).score  > maxScore) {
+            maxScore = ansPostsArr(x).score
+          }
+        }
+
+        // Return the qnPosting and the maxScore of all the ansPostings for that qnPosting
+        (qnsPostsArr(0), maxScore)
+      }
+    }
   }
 
 
   /** Compute the vectors for the kmeans */
-  def vectorPostings(): = {
+  def vectorPostings(scoredPosts: RDD[(Posting, Int)]): RDD[(Int, Int)] = {
+//    println("scoredPosts")
+//    scoredPosts.take(10).foreach(println)
+//    scoredPosts.take(10).foreach(scoredPost => println(Domains.indexOf(scoredPost._1.tags.get)))
 
-    //ToDo
-    //
+    // Return (D*X, S)
+    scoredPosts
+      .filter(_._1.tags != None)
+      .map(scoredPost => (Domains.indexOf(scoredPost._1.tags.get) * DomainSpread, scoredPost._2))
   }
 
 
@@ -109,11 +147,11 @@ class Assignment2 extends Serializable {
   //
 
   /** Main kmeans computation */
-  @tailrec final def kmeans(): = {
-
-    //ToDo
-
-  }
+//  @tailrec final def kmeans(): = {
+//
+//    //ToDo
+//
+//  }
 
 
   //
@@ -185,7 +223,7 @@ class Assignment2 extends Serializable {
 
   //  Displaying results:
 
-  def printResults():  = {
-
-  }
+//  def printResults(results: ):  = {
+//
+//  }
 }
