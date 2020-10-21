@@ -29,7 +29,7 @@ object Assignment2 extends Assignment2 {
 
     val means   = kmeans(sampleVectors(vectors), vectors, 1, debug = true)
     val results = clusterResults(means, vectors)
-//    printResults(results)
+    printResults(results)
   }
 }
 
@@ -189,6 +189,7 @@ class Assignment2 extends Serializable {
     val distance = euclideanDistance(clusterCentroids, newClusterCentroids)
     val hasConverged = converged(distance)
 
+    // repeat kmeans iteration until converged or function has iterated kmeansMaxIterations_ times
     if (hasConverged || iterationCount > kmeansMaxIterations_) {
       newClusterCentroids
     } else {
@@ -196,7 +197,7 @@ class Assignment2 extends Serializable {
     }
   }
 
-  def clusterResults(clusterCentroids: Array[(Int, Int)], vectors: RDD[(Int, Int)]): /*Array[(String, Int, Int, Int)]*/ Unit = {
+  def clusterResults(clusterCentroids: Array[(Int, Int)], vectors: RDD[(Int, Int)]): Array[(String, Int, Int, Int)] = {
     println("clusterResults")
     // Extract just the field needed into a local variable to prevent passing all of this
     val domains_ = this.Domains
@@ -214,7 +215,7 @@ class Assignment2 extends Serializable {
       }
     }
 
-    val results = centroidForGroupedVectors.map {
+    val result = centroidForGroupedVectors.map {
       case (centroid, groupedVectors) => {
         val domainId = groupedVectors.groupBy(_._1).mapValues(_.size).maxBy(_._2)._1
         val domainName = domains_(domainId/domainSpread_)
@@ -225,7 +226,8 @@ class Assignment2 extends Serializable {
       }
     }
 
-    results.collect().map(_._2)
+//    result.collect().take(10).foreach(println)
+    result.collect()
   }
 
 
@@ -323,11 +325,14 @@ class Assignment2 extends Serializable {
 
   //  Displaying results:
 
-//  def printResults(results: Array[(String, Int, Int, Int): Unit  = {
-//    results.foreach {
-//      case(centroid, domainSize, medianScore, avgScore) => {
-//
-//      }
-//    }
-//  }
+  def printResults(results: Array[(String, Int, Int, Int)]): Unit  = {
+    results.foreach {
+      case(centroid, domainSize, medianScore, avgScore) => {
+        println("Cluster centroid = " + centroid)
+        println("Domain size = " + domainSize)
+        println("Median score = " + medianScore)
+        println("Average score = " + avgScore + "\n")
+      }
+    }
+  }
 }
