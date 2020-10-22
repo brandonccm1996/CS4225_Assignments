@@ -20,7 +20,7 @@ object Assignment2 extends Assignment2 {
   /** Main function */
   def main(args: Array[String]): Unit = {
 
-    val lines   = sc.textFile("QA_data.csv")
+    val lines   = sc.textFile(args(0))
     val raw     = rawPostings(lines)
     val grouped = groupedPostings(raw)
     val scored  = scoredPostings(grouped)
