@@ -136,8 +136,9 @@ class Assignment2 extends Serializable {
 //    scoredPosts.take(10).foreach(println)
 //    scoredPosts.take(10).foreach(scoredPost => println(Domains.indexOf(scoredPost._1.tags.get)))
 
-    // Extract just the field needed into a local variable to prevent passing all of this
+    // extract just the fields needed into local variables to prevent passing all of this
     val domains_ = this.Domains
+    val domainSpread_ = this.DomainSpread
 
     // Return (D*X, S) after removing qns with no tags
     scoredPosts
@@ -145,7 +146,7 @@ class Assignment2 extends Serializable {
       .map {
         case (qnPosting, maxAnsScore) => {
           val indexInDomainList = domains_.indexOf(qnPosting.tags.get)
-          (indexInDomainList * DomainSpread, maxAnsScore)
+          (indexInDomainList * domainSpread_, maxAnsScore)
         }
       }
   }
@@ -210,7 +211,7 @@ class Assignment2 extends Serializable {
 
 //    println("clusterResults")
 
-    // extract just the fields needed into a local variable to prevent passing all of this
+    // extract just the fields needed into local variables to prevent passing all of this
     val domains_ = this.Domains
     val domainSpread_ = this.DomainSpread
 
