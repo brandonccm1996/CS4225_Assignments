@@ -77,6 +77,8 @@ class Assignment2 extends Serializable {
 
 
   /** Group the questions and answers together */
+  /** Eg of 1 line in input: Posting(1,27233496,None,0,Some(Data-Analysis)) */
+  /** Eg of 1 line in input: Posting(2,5494879,Some(5484340),1,None) */
   def groupedPostings(rawPosts: RDD[Posting]): RDD[(Int, Iterable[(Posting, Posting)])] = {
     // Filter the questions and answers separately
     // Prepare them for a join operation by extracting the QID value in the first element of a tuple.
@@ -98,7 +100,9 @@ class Assignment2 extends Serializable {
 
 
   /** Compute the maximum score for each posting */
+  /** Eg of 1 line in input: (11335234,CompactBuffer((Posting(1,11335234,None,2,Some(Data-Analysis)),Posting(2,11335253,Some(11335234),3,None)), (Posting(1,11335234,None,2,Some(Data-Analysis)),Posting(2,11335254,Some(11335234),0,None)))) */
   def scoredPostings(groupedPosts: RDD[(Int, Iterable[(Posting, Posting)])]): RDD[(Posting, Int)]  = {
+
 //    println("groupedPosts")
 //    groupedPosts.take(10).foreach(println)
 //    groupedPosts.take(10).foreach(groupedPost => {
@@ -124,9 +128,10 @@ class Assignment2 extends Serializable {
     }
   }
 
-
   /** Compute the vectors for the kmeans */
+  /** Eg of 1 line in input: (Posting(1,21090507,None,1,Some(Silicon Valley)),6) */
   def vectorPostings(scoredPosts: RDD[(Posting, Int)]): RDD[(Int, Int)] = {
+
 //    println("scoredPosts")
 //    scoredPosts.take(10).foreach(println)
 //    scoredPosts.take(10).foreach(scoredPost => println(Domains.indexOf(scoredPost._1.tags.get)))
@@ -147,9 +152,12 @@ class Assignment2 extends Serializable {
 
 
   /** Select k random points as initial centroids */
+  /** Eg of 1 line in input: (300000,6) */
   def sampleVectors(vectors: RDD[(Int, Int)]): Array[(Int, Int)] = {
+
 //    println("sampleVectors")
 //    vectors.take(10).foreach(println)
+
     vectors.takeSample(true, kmeansKernels)
   }
 
@@ -162,16 +170,16 @@ class Assignment2 extends Serializable {
 
   /** Main kmeans computation */
   @tailrec final def kmeans(clusterCentroids: Array[(Int, Int)], vectors: RDD[(Int, Int)], iterationCount: Int, debug: Boolean): Array[(Int, Int)] = {
-    println("kMeans")
+//    println("kMeans")
 
-    // Extract just the field needed into a local variable to prevent passing all of this
+    // extract just the field needed into a local variable to prevent passing all of this
     val kmeansMaxIterations_ = this.kmeansMaxIterations
 
     // return every centroid with the vectors in its cluster
     val centroidForGroupedVectors = obtainCentroidWithGroupedVectors(clusterCentroids, vectors)
 
     // find new centroid locations based on their grouped vectors
-    val oldAndNewCentroids = centroidForGroupedVectors.map{
+    val oldAndNewCentroids = centroidForGroupedVectors.map {
       case(centroid, vector) => {
         val newCentroid = averageVectors(vector)
         (centroid, newCentroid)
@@ -199,7 +207,8 @@ class Assignment2 extends Serializable {
 
   def clusterResults(clusterCentroids: Array[(Int, Int)], vectors: RDD[(Int, Int)]): Array[(String, Int, Int, Int)] = {
     println("clusterResults")
-    // Extract just the field needed into a local variable to prevent passing all of this
+
+    // extract just the fields needed into a local variable to prevent passing all of this
     val domains_ = this.Domains
     val domainSpread_ = this.DomainSpread
 
@@ -226,8 +235,13 @@ class Assignment2 extends Serializable {
       }
     }
 
+    // collect the entire results RDD and sort by avgScore for easier gathering of insights
 //    result.collect().take(10).foreach(println)
-    result.collect()
+    result.collect().sortBy {
+      case (domainName, clusterSize, medianScore, avgScore) => {
+        avgScore
+      }
+    }
   }
 
 
@@ -237,6 +251,8 @@ class Assignment2 extends Serializable {
   //
   //
 
+  /** Return every centroid with the vectors in its cluster */
+  /** Eg of 1 line in output:  (19, CompactBuffer((0,575), (0,231), (0,258), (0,234))) */
   def obtainCentroidWithGroupedVectors(clusterCentroids: Array[(Int, Int)], vectors: RDD[(Int, Int)]): RDD[(Int, Iterable[(Int, Int)])] = {
     // calculate closest pt ie centroid for each vector
     val centroidForEachVector = vectors.map(vector => {
@@ -326,12 +342,10 @@ class Assignment2 extends Serializable {
   //  Displaying results:
 
   def printResults(results: Array[(String, Int, Int, Int)]): Unit  = {
+    println("Cluster centroid | Domain Size | Median Score | Average Score")
     results.foreach {
       case(centroid, domainSize, medianScore, avgScore) => {
-        println("Cluster centroid = " + centroid)
-        println("Domain size = " + domainSize)
-        println("Median score = " + medianScore)
-        println("Average score = " + avgScore + "\n")
+        println(centroid + " | " + domainSize + " | " + medianScore + " | " + avgScore)
       }
     }
   }
