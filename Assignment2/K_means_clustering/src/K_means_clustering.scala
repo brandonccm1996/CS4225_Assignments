@@ -170,6 +170,7 @@ class Assignment2 extends Serializable {
 
   /** Main kmeans computation */
   @tailrec final def kmeans(clusterCentroids: Array[(Int, Int)], vectors: RDD[(Int, Int)], iterationCount: Int, debug: Boolean): Array[(Int, Int)] = {
+
 //    println("kMeans")
 
     // extract just the field needed into a local variable to prevent passing all of this
@@ -206,7 +207,8 @@ class Assignment2 extends Serializable {
   }
 
   def clusterResults(clusterCentroids: Array[(Int, Int)], vectors: RDD[(Int, Int)]): Array[(String, Int, Int, Int)] = {
-    println("clusterResults")
+
+//    println("clusterResults")
 
     // extract just the fields needed into a local variable to prevent passing all of this
     val domains_ = this.Domains
@@ -216,18 +218,18 @@ class Assignment2 extends Serializable {
     val centroidForGroupedVectors = obtainCentroidWithGroupedVectors(clusterCentroids, vectors)
 
 //    println(centroidForGroupedVectors)
-
-    centroidForGroupedVectors.foreach {
-      case (centroid, groupedVectors) => {
-        println(centroid)
-        println(groupedVectors)
-      }
-    }
+//    centroidForGroupedVectors.foreach {
+//      case (centroid, groupedVectors) => {
+//        println(centroid)
+//        println(groupedVectors)
+//      }
+//    }
 
     val result = centroidForGroupedVectors.map {
       case (centroid, groupedVectors) => {
-        val domainId = groupedVectors.groupBy(_._1).mapValues(_.size).maxBy(_._2)._1
-        val domainName = domains_(domainId/domainSpread_)
+        val arrayOfDomainIdMultipledWithD = groupedVectors.map(groupedVector => groupedVector._1).toArray
+        val domainId = arrayOfDomainIdMultipledWithD(0) / domainSpread_
+        val domainName = domains_(domainId)
         val clusterSize = groupedVectors.size
         val medianScore = computeMedian(groupedVectors)
         val avgScore = computeAverage(groupedVectors)
