@@ -177,22 +177,22 @@ class Assignment2 extends Serializable {
     // extract just the field needed into a local variable to prevent passing all of this
     val kmeansMaxIterations_ = this.kmeansMaxIterations
 
-    // return every centroid with the vectors in its cluster
+    // return every centroid (centroid index) with the vectors in its cluster
     val centroidForGroupedVectors = obtainCentroidWithGroupedVectors(clusterCentroids, vectors)
 
     // find new centroid locations based on their grouped vectors
     val oldAndNewCentroids = centroidForGroupedVectors.map {
-      case(centroid, vector) => {
+      case(centroidIndex, vector) => {
         val newCentroid = averageVectors(vector)
-        (centroid, newCentroid)
+        (centroidIndex, newCentroid)
       }
     }.collect()
 
     // get new cluster centroids
     val newClusterCentroids = clusterCentroids map(identity)
     oldAndNewCentroids.foreach {
-      case(oldCentroid, newCentroid) => {
-        newClusterCentroids.update(oldCentroid, newCentroid)
+      case(centroidIndex, newCentroid) => {
+        newClusterCentroids.update(centroidIndex, newCentroid)
       }
     }
 
@@ -207,15 +207,11 @@ class Assignment2 extends Serializable {
     }
   }
 
-  def clusterResults(clusterCentroids: Array[(Int, Int)], vectors: RDD[(Int, Int)]): Array[(String, Int, Int, Int)] = {
+  def clusterResults(clusterCentroids: Array[(Int, Int)], vectors: RDD[(Int, Int)]): Array[((Int, Int), Int, Int, Int)] = {
 
 //    println("clusterResults")
 
-    // extract just the fields needed into local variables to prevent passing all of this
-    val domains_ = this.Domains
-    val domainSpread_ = this.DomainSpread
-
-    // return every centroid with the vectors in its cluster
+    // return every centroid (centroid index) with the vectors in its cluster
     val centroidForGroupedVectors = obtainCentroidWithGroupedVectors(clusterCentroids, vectors)
 
 //    println(centroidForGroupedVectors)
@@ -227,21 +223,19 @@ class Assignment2 extends Serializable {
 //    }
 
     val result = centroidForGroupedVectors.map {
-      case (centroid, groupedVectors) => {
-        val arrayOfDomainIdMultipledWithD = groupedVectors.map(groupedVector => groupedVector._1).toArray
-        val domainId = arrayOfDomainIdMultipledWithD(0) / domainSpread_
-        val domainName = domains_(domainId)
+      case (centroidIndex, groupedVectors) => {
+        val centroid = clusterCentroids(centroidIndex)
         val clusterSize = groupedVectors.size
         val medianScore = computeMedian(groupedVectors)
         val avgScore = computeAverage(groupedVectors)
-        (domainName, clusterSize, medianScore, avgScore)
+        (centroid, clusterSize, medianScore, avgScore)
       }
     }
 
     // collect the entire results RDD and sort by avgScore for easier gathering of insights
 //    result.collect().take(10).foreach(println)
     result.collect().sortBy {
-      case (domainName, clusterSize, medianScore, avgScore) => {
+      case (centroid, clusterSize, medianScore, avgScore) => {
         avgScore
       }
     }
@@ -254,7 +248,7 @@ class Assignment2 extends Serializable {
   //
   //
 
-  /** Return every centroid with the vectors in its cluster */
+  /** Return every centroid (centroid index) with the vectors in its cluster */
   /** Eg of 1 line in output:  (19, CompactBuffer((0,575), (0,231), (0,258), (0,234))) */
   def obtainCentroidWithGroupedVectors(clusterCentroids: Array[(Int, Int)], vectors: RDD[(Int, Int)]): RDD[(Int, Iterable[(Int, Int)])] = {
     // calculate closest pt ie centroid for each vector
@@ -263,7 +257,7 @@ class Assignment2 extends Serializable {
       (closestPt, vector)
     })
 
-    // return every centroid with the vectors in its cluster
+    // return every centroid (centroid index) with the vectors in its cluster
     val centroidForGroupedVectors = centroidForEachVector.groupByKey()
     centroidForGroupedVectors
   }
@@ -344,11 +338,20 @@ class Assignment2 extends Serializable {
 
   //  Displaying results:
 
-  def printResults(results: Array[(String, Int, Int, Int)]): Unit  = {
-    println("Cluster centroid | Domain Size | Median Score | Average Score")
+  def printResults(results: Array[((Int, Int), Int, Int, Int)]): Unit  = {
+
+    // extract just the fields needed into local variables to prevent passing all of this
+    val domains_ = this.Domains
+    val domainSpread_ = this.DomainSpread
+
+    // print domain name of cluster centroid as well for easier visualisation
+    println("Cluster centroid | Domain of cluster centroid | Domain Size | Median Score | Average Score")
     results.foreach {
       case(centroid, domainSize, medianScore, avgScore) => {
-        println(centroid + " | " + domainSize + " | " + medianScore + " | " + avgScore)
+        val centroidDomainId = centroid._1 / domainSpread_
+        val centroidDomainName = domains_(centroidDomainId)
+
+        println(centroid + " | " + centroidDomainName + " | " + domainSize + " | " + medianScore + " | " + avgScore)
       }
     }
   }
