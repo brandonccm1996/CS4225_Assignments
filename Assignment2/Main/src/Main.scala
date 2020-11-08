@@ -35,8 +35,8 @@ object Main {
 //    word2vecDataframe.show(2, false)
     word2vecDataframe.cache()
 
-    // Trains a k-means model
-    val kmeans = new KMeans().setK(2).setFeaturesCol("word2vec_result").setPredictionCol("predicted_cluster")
+    // Train a k-means model
+    val kmeans = new KMeans().setMaxIter(20).setK(2).setFeaturesCol("word2vec_result").setPredictionCol("predicted_cluster")
     val kmeans_model = kmeans.fit(word2vecDataframe)
     val dataframeClustered = kmeans_model.transform(word2vecDataframe)
 //    dataframeClustered.show(2, false)
@@ -47,12 +47,14 @@ object Main {
     val silhouette = evaluator.evaluate(dataframeClustered)
     println(s"Silhouette with squared euclidean distance = $silhouette")
 
-    // Shows the result
+    // Print cluster centers result
     println("Number of Cluster Centers: ")
     println(kmeans_model.clusterCenters.length)
+    println("MaxIter:")
+    println(kmeans.getMaxIter)
     println("Cluster Centers: ")
     kmeans_model.clusterCenters.foreach(println)
-    
+
     spark.stop()
   }
 }
